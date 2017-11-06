@@ -16,7 +16,7 @@ Handle g_hTag;
 char g_cTag[128];
 
 Handle g_hDBConfig;
-char g_cDBConfig[128];
+char g_cDBConfig[128] = "store";
 
 Handle g_hCreditsAmount;
 int g_iCreditsAmount = 2500;
@@ -43,17 +43,21 @@ public void OnPluginStart()
 	AutoExecConfig_SetCreateFile(true);
 	
 	g_hTag = AutoExecConfig_CreateConVar("group_chattag", "Group", "sets the chat tag before every message for the Group Plugin");
-	g_hDBConfig = AutoExecConfig_CreateConVar("group_dbconfig", "group", "database config (MySQL) to use for this plugin");
-	g_hGroupId = AutoExecConfig_CreateConVar("group_groupid", "103582791431203171", "Your Group ID in the format as default");
+	g_hDBConfig = AutoExecConfig_CreateConVar("group_dbconfig", "store", "database config (MySQL) to use for this plugin");
+	g_hGroupId = AutoExecConfig_CreateConVar("group_groupid", "103582791431203171", "Your Group ID in the format as default // DOES NOT WORK!!! Edit the .sp");
 	g_hCreditsAmount = AutoExecConfig_CreateConVar("group_credits", "2500", "Amount of Credits a Player gets for joining the group");
 	
 	AutoExecConfig_CleanFile();
 	AutoExecConfig_ExecuteFile();
-	
+}
+
+public void OnConfigsExecuted() {
+	GetConVarString(g_hTag, g_cTag, sizeof(g_cTag));
+	g_iCreditsAmount = GetConVarInt(g_hCreditsAmount);
 	GetConVarString(g_hDBConfig, g_cDBConfig, sizeof(g_cDBConfig));
 	
 	char error[256];
-	g_DB = SQL_Connect("gsxh_multiroot", true, error, sizeof(error));
+	g_DB = SQL_Connect(g_cDBConfig, true, error, sizeof(error));
 	if (g_DB == INVALID_HANDLE) {
 		char failstate[128];
 		Format(failstate, sizeof(failstate), "You Database Config (%s) is invalid", g_cDBConfig);
@@ -67,11 +71,6 @@ public void OnPluginStart()
 		SQL_GetError(g_DB, error2, sizeof(error2));
 		PrintToServer("Failed to query (error: %s)", error2);
 	}
-}
-
-public void OnConfigsExecuted() {
-	GetConVarString(g_hTag, g_cTag, sizeof(g_cTag));
-	g_iCreditsAmount = GetConVarInt(g_hCreditsAmount);
 }
 
 public Action cmdClaimCredits(int client, int args) {

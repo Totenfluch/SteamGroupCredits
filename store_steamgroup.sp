@@ -22,21 +22,20 @@ Handle g_hCreditsAmount;
 int g_iCreditsAmount = 2500;
 
 ConVar g_hGroupId;
+int g_iGroupId;
 
-/*
-	ADD YOUR GROUP ID IN LINE 78 AND 86 !!!
-*/
 public Plugin myinfo = 
 {
 	name = "SteamGroup Credits", 
 	author = "Totenfluch", 
-	description = "Gives your Credits when you are in the Steam Group", 
-	version = "3.0", 
-	url = "http://ggc-base.de"
+	description = "Gives X Credits once for beeing in the Servers Steamgroup", 
+	version = "4.0", 
+	url = "https://totenfluch.de"
 };
 
-public void OnPluginStart()
-{
+#pragma newdecls required
+
+public void OnPluginStart() {
 	RegConsoleCmd("sm_claim", cmdClaimCredits, "Claims the credits for joining the group");
 	
 	AutoExecConfig_SetFile("steamGroupCredits");
@@ -44,7 +43,7 @@ public void OnPluginStart()
 	
 	g_hTag = AutoExecConfig_CreateConVar("group_chattag", "Group", "sets the chat tag before every message for the Group Plugin");
 	g_hDBConfig = AutoExecConfig_CreateConVar("group_dbconfig", "store", "database config (MySQL) to use for this plugin");
-	g_hGroupId = AutoExecConfig_CreateConVar("group_groupid", "103582791431203171", "Your Group ID in the format as default // DOES NOT WORK!!! Edit the .sp");
+	g_hGroupId = AutoExecConfig_CreateConVar("group_groupid", "0000000", "Your Group ID in the format as default");
 	g_hCreditsAmount = AutoExecConfig_CreateConVar("group_credits", "2500", "Amount of Credits a Player gets for joining the group");
 	
 	AutoExecConfig_CleanFile();
@@ -52,8 +51,10 @@ public void OnPluginStart()
 }
 
 public void OnConfigsExecuted() {
-	GetConVarString(g_hTag, g_cTag, sizeof(g_cTag));
 	g_iCreditsAmount = GetConVarInt(g_hCreditsAmount);
+	g_iGroupId = GetConVarInt(g_hGroupId);
+	
+	GetConVarString(g_hTag, g_cTag, sizeof(g_cTag));
 	GetConVarString(g_hDBConfig, g_cDBConfig, sizeof(g_cDBConfig));
 	
 	char error[256];
@@ -63,9 +64,10 @@ public void OnConfigsExecuted() {
 		Format(failstate, sizeof(failstate), "You Database Config (%s) is invalid", g_cDBConfig);
 		SetFailState(failstate);
 	}
+	
 	SQL_SetCharset(g_DB, "utf8");
 	char query[512];
-	Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS `SteamGroupCredits` (`thekey` bigint(20) NOT NULL AUTO_INCREMENT, `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `playerid` varchar(20) NOT NULL, `amount` int(11) NOT NULL, PRIMARY KEY (`thekey`)) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;");
+	Format(query, sizeof(query), "CREATE TABLE IF NOT EXISTS SteamGroupCredits (`thekey` bigint(20) NOT NULL AUTO_INCREMENT, `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `playerid` varchar(20) NOT NULL, `amount` int(11) NOT NULL, PRIMARY KEY (`thekey`)) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;");
 	char error2[255];
 	if (!SQL_FastQuery(g_DB, query)) {
 		SQL_GetError(g_DB, error2, sizeof(error2));
@@ -74,15 +76,14 @@ public void OnConfigsExecuted() {
 }
 
 public Action cmdClaimCredits(int client, int args) {
-	SteamWorks_GetUserGroupStatus(client, 103582791431203171);
+	SteamWorks_GetUserGroupStatus(client, g_iGroupId);
 	checkIfGottenCredits(client);
 	return Plugin_Handled;
 }
 
-public void OnClientPutInServer(int client)
-{
+public void OnClientPutInServer(int client) {
 	g_iIsLocked[client] = 0;
-	SteamWorks_GetUserGroupStatus(client, 103582791431203171);
+	SteamWorks_GetUserGroupStatus(client, g_iGroupId);
 }
 
 public void OnClientDisconnect(int client) {
@@ -90,8 +91,7 @@ public void OnClientDisconnect(int client) {
 	g_bIsInGroup[client] = false;
 }
 
-public int SteamWorks_OnClientGroupStatus(int authid, int groupid, bool isMember, bool isOfficer)
-{
+public int SteamWorks_OnClientGroupStatus(int authid, int groupid, bool isMember, bool isOfficer) {
 	int client = GetUserFromAuthID(authid);
 	if (isMember || isOfficer)
 	{
@@ -124,18 +124,15 @@ public void sql_alreadyGottenCreditsQuery(Handle owner, Handle hndl, const char[
 			char timestamp[128];
 			SQL_FetchString(hndl, 0, timestamp, sizeof(timestamp));
 			int amount = SQL_FetchInt(hndl, 1);
-			CPrintToChat(client, "{green}[{purple}%s{green}]{lightred} Du hast bereits {green}%i Credits{lightred} zu dem Zeitpunkt: {green}%s{lightred} erhalten.", g_cTag, amount, timestamp);
+			CPrintToChat(client, "{green}[{purple}%s{green}]{lightred} You have already received {green}%i Credits{lightred} at: {green}%s{lightred}.", g_cTag, amount, timestamp);
 		}
 	}
 }
 
-public void sql_CheckGroupCallback(Handle owner, Handle hndl, const char[] error, any userid)
-{
-	if (hndl != INVALID_HANDLE)
-	{
+public void sql_CheckGroupCallback(Handle owner, Handle hndl, const char[] error, any userid) {
+	if (hndl != INVALID_HANDLE) {
 		int client = GetClientOfUserId(userid);
-		while (SQL_FetchRow(hndl))
-		{
+		while (SQL_FetchRow(hndl)) {
 			int grp = SQL_FetchInt(hndl, 0);
 			if (grp > 0) {
 				return;
@@ -147,7 +144,7 @@ public void sql_CheckGroupCallback(Handle owner, Handle hndl, const char[] error
 		g_iIsLocked[client] = 1;
 		
 		Store_SetClientCredits(client, Store_GetClientCredits(client) + g_iCreditsAmount);
-		CPrintToChat(client, "{green}[{purple}%s{green}]{orange} Du hast {green}%i{orange} Credits bekommen, da du unserer Steam Gruppe beigetreten bist!", g_cTag, g_iCreditsAmount);
+		CPrintToChat(client, "{green}[{purple}%s{green}]{orange} You received {green}%i{orange} Credits because you joined our Steam Group!", g_cTag, g_iCreditsAmount);
 		char query[255];
 		char c_id[20];
 		GetClientAuthId(client, AuthId_Steam2, c_id, sizeof(c_id));
@@ -175,16 +172,12 @@ public int GetUserFromAuthID(int authid) {
 	return -1;
 }
 
-public bool isValidClient(int client)
-{
-	if (!(1 <= client <= MaxClients) || !IsClientInGame(client))
-		return false;
-	
-	return true;
+stock bool isValidClient(int client) {
+	return (1 <= client <= MaxClients && IsClientInGame(client));
 }
 
-public void sql_TQueryCallback(Handle owner, Handle hndl, const char[] error, any userid)
-{
-	if (!StrEqual(error, ""))
+public void sql_TQueryCallback(Handle owner, Handle hndl, const char[] error, any userid) {
+	if (!StrEqual(error, "")) {
 		LogError("SQL Error: %s", error);
+	}
 } 
